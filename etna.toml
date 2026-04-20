@@ -1,0 +1,3 @@
+name = "STLC"
+language = "Haskell"
+description = "Simply-typed lambda calculus workload for Etna, with QuickCheck/SmallCheck/LeanCheck generators."
