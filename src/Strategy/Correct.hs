@@ -1,13 +1,21 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Strategy.Correct where
 
 import Etna.Lib
+import GHC.Generics (Generic)
 import Impl
 import Spec
 import Test.QuickCheck hiding (Result)
 
+deriving instance Generic Typ
+deriving instance Generic Expr
+
 instance Arbitrary Typ where
+  shrink = genericShrink
   arbitrary = sized go
     where
       go 0 = return TBool
@@ -18,6 +26,7 @@ instance Arbitrary Typ where
           ]
 
 instance Arbitrary Expr where
+  shrink = genericShrink
   arbitrary = do
     t <- (arbitrary :: Gen Typ)
     genExactExpr [] t
@@ -51,7 +60,7 @@ genExactExpr ctx t = sized $ \n -> go n ctx t
         vars = filter (\i -> ctx !! i == t) [0 .. (length ctx - 1)]
 
 $( mkStrategies
-     [|qcRunArb qcDefaults Correct|]
+     [|qcRunArb qcDefaults Naive|]
      [ 'prop_SinglePreserve,
        'prop_MultiPreserve
      ]

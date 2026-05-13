@@ -13,56 +13,39 @@ import qualified Test.Falsify.Range as Range
 class FGen a where
   fgen :: Gen a
 
+-- Unified Typ generator (matches Strategy.Quick / Strategy.Hedgehog):
+-- frequency [(1, TBool), (3, TFun ...)] with a fixed depth budget of 4.
+genTypF :: Int -> Gen Typ
+genTypF n
+  | n <= 0 = pure TBool
+  | otherwise =
+      Gen.frequency
+        [ (1, pure TBool)
+        , (3, TFun <$> genTypF (n - 1) <*> genTypF (n - 1))
+        ]
+
+-- Unified Expr generator: equal-weighted frequencies across the four
+-- constructors, fixed depth budget of 4.
+genExprF :: Int -> Gen Expr
+genExprF n
+  | n <= 0 =
+      Gen.frequency
+        [ (1, Var <$> Gen.int (Range.withOrigin (-1000, 1000) 0))
+        , (1, Bool <$> Gen.elem (True :| [False]))
+        ]
+  | otherwise =
+      Gen.frequency
+        [ (1, Var <$> Gen.int (Range.withOrigin (-1000, 1000) 0))
+        , (1, Bool <$> Gen.elem (True :| [False]))
+        , (1, Abs <$> genTypF (n - 1) <*> genExprF (n - 1))
+        , (1, App <$> genExprF (n - 1) <*> genExprF (n - 1))
+        ]
+
 instance FGen Typ where
-  fgen = do
-    height <- Gen.int (Range.between (0, 1000))
-    genTyp height
-    where
-      genTyp :: Int -> Gen Typ
-      genTyp height
-        | height <= 0 = pure TBool
-        | otherwise = do
-            left <- Gen.int (Range.between (0, height - 1))
-            right <- Gen.int (Range.between (0, height - 1))
-            Gen.frequency
-              [ (1, pure TBool),
-                (3, TFun <$> genTyp left <*> genTyp right)
-              ]
+  fgen = genTypF 4
 
 instance FGen Expr where
-  fgen = do
-    height <- Gen.int (Range.between (0, 1000))
-    genExpr height
-    where
-      genExpr :: Int -> Gen Expr
-      genExpr height
-        | height <= 0 =
-            Gen.frequency
-              [ (1, Var <$> Gen.int (Range.withOrigin (-1000, 1000) 0)),
-                (1, Bool <$> Gen.elem (True :| [False]))
-              ]
-        | otherwise = do
-            typHeight <- Gen.int (Range.between (0, height - 1))
-            bodyHeight <- Gen.int (Range.between (0, height - 1))
-            left <- Gen.int (Range.between (0, height - 1))
-            right <- Gen.int (Range.between (0, height - 1))
-            Gen.frequency
-              [ (1, Var <$> Gen.int (Range.withOrigin (-1000, 1000) 0)),
-                (1, Bool <$> Gen.elem (True :| [False])),
-                (3, Abs <$> genTyp typHeight <*> genExpr bodyHeight),
-                (3, App <$> genExpr left <*> genExpr right)
-              ]
-
-      genTyp :: Int -> Gen Typ
-      genTyp height
-        | height <= 0 = pure TBool
-        | otherwise = do
-            left <- Gen.int (Range.between (0, height - 1))
-            right <- Gen.int (Range.between (0, height - 1))
-            Gen.frequency
-              [ (1, pure TBool),
-                (3, TFun <$> genTyp left <*> genTyp right)
-              ]
+  fgen = genExprF 4
 
 $( mkStrategies
      [|fsRunGen fsDefaults Naive fgen|]
